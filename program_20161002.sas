@@ -400,7 +400,7 @@ Proc sql;
   select department, avg(price) as avgprice62 format=6.2
    from exam.january2013new
 
-    group by department
+    group by department /* avg price for each department and compare with avg of everything)*/
      having avgprice62 > (select avg(price)
                            from exam.january2013new
 )
@@ -410,14 +410,10 @@ Quit;
 
 Proc sql;
  create table newtest31 as 
-   select distinct(a.initials) 'The initials of the employee', 
-          (('31OCT2013'd-date)/365.25)
-          as YA 'Years Ago' format=6.2
-      from exam.january2013new
- as a,
+   select distinct(a.initials) 'The initials of the employee',  (('31OCT2013'd-date)/365.25) as YA 'Years Ago' format=6.2
+      from exam.january2013new as a,
            exam.sample4 as b
-	  where a.initials=b.initials
-	        and calculated YA gt 1.8
+	  where a.initials=b.initials and calculated YA gt 1.8
 	   order by initials
 ;
 Quit;
@@ -524,7 +520,7 @@ Quit;
 /*  */
 
 Proc sql;
- create view exam.testview as
+ create view exam.testview as /* not dataset -> due to updating, */
   select * 
   	from exam.sample3
 	 where substr(upcase(initials),1,1)="A"
@@ -585,19 +581,20 @@ Quit;
 %let LargeBuff=100;
 options symbolgen;
 
-Proc sql noprint;
+Proc sql;
       select avg(price),min(price),max(price)
        into :Meanprice, :Minprice, :Maxprice
         from exam.january2013new
 ;
+
 %put Mean: &meanprice Min: &minprice 
      Max: &maxprice Price of large buffet: &LargeBuff;
+
 Quit;
 
 options symbolgen;
 Data testmacro; 
- set exam.january2013new
-;
+ set exam.january2013new;
   where price > &meanprice;
 Run;
 
@@ -629,8 +626,8 @@ libname exam '/folders/myfolders/exam/';
 %let date2=25jun2012;
 
 Proc print data=exam.X2012_1_6cleaned10;
-/* Macro variable references begin with an ampersand(&)  */
-/* followed by a macro variable name */
+/* Macro variable references begin with an ampersand(&) 
+ followed by a macro variable name */
    where day between "&date1"d and "&date2"d;
     where also daytype="&dayy";
      var _numeric_;
@@ -653,28 +650,27 @@ proc print data=exam.X2012_1_6cleaned10;
 run;
 title;
 
-/* Some selected character string manipulation functions. */
-/* %SUBSTR extracts a substring from a character string. */
-/* %EVAL performs arithmetic and logical operations */
+/* Some selected character string manipulation functions. 
+%SUBSTR extracts a substring from a character string. 
+ %EVAL performs arithmetic and logical operations */
 
 %let thisyear=%substr(&sysdate9,6);
-%let threeyearsago=%eval(&thisyear-3);
+%let fouryearsago=%eval(&thisyear-4);
 
 proc means data=exam.X2012_1_6cleaned10 maxdec=2 min max mean;
    class daytype;
-    var sumStorBuffet;
-     where year(day) = &threeyearsago;
-       title1 "Sales for &threeyearsago";
+    var sumStorBuffet; 
+     where year(day) = &fouryearsago;
+       title1 "Sales for &fouryearsago";
        title2 "(as of &sysdate9)";
-   %put &thisyear &threeyearsago;
+   %put &thisyear &fouryearsago;
 run;
 title;
 footnote; 
 
-proc sort data=exam.X2012_1_6cleaned10 
-                        out=X2012_1_6cleaned10_TEST;
+proc sort data=exam.X2012_1_6cleaned10 out=X2012_1_6cleaned10_TEST;
    by daytype day;
-run;
+run; 
 
 
 %let ddd=First; 
@@ -687,7 +683,7 @@ variable is resolved.*/
 data &ddd.xxx;   
    set X2012_1_6cleaned10_TEST;
    by daytype;
-   if &ddd..daytype;  
+   if &ddd..daytype;   /* first . stops, second one is really dot */
 run;
 proc print data=&ddd.xxx;
    var daytype day;
@@ -703,7 +699,7 @@ options mcompilenote=all;
 
 %macro time;
    %put The current time is %sysfunc(time(),timeAMPM.).;
-/*    %SYSFUNCï¿½ executes SAS functions */
+/*    %SYSFUNC executes SAS functions */
 %mend time;
 /* A macro call causes the macro to execute. */
 /* A macro call is specified by placing  */
@@ -735,7 +731,7 @@ options mcompilenote=all;
    run;
 %mend calc;
 
-%calc(min max,sumLilleBuffet)
+%calc(min max,sumLilleBuffet) /* order important*/
 title;
 
 
@@ -752,13 +748,14 @@ options mprint;
 
 %count(opts=nocum)
 title;
-%count(stop=01jul12,opts=nocum nopercent)
+%count(stop=01jul12, opts=nocum nopercent)
 title;
 %count()
 title;
 
-libname macData '/folders/myfolders/macData/';
+/* store macro */
 
+libname macData '/folders/myshortcuts/SASUniversityEdition/macData';
 options mstored sasmstore=macData;
 
 %macro calcII / store;
@@ -767,49 +764,44 @@ options mstored sasmstore=macData;
    run;
 %mend calcII;
 
-
-
 options mstored sasmstore=macData;
-
 %let stats=min max;
 %let vars=sumLilleBuffet;
 
 %calcII
-
-
 /* SYMPUT provides a way to turn DATA step variables  */
 /* into macro variables, and SYMGET does the converse, */
 /* grabbing macro variable values and assigning them  */
 /* to DATA step variables. */
 
 
-/* Displaying macro variables */
-/* Display all user-defined macro variables in  */
-/* the SAS log:  %put _user_;  */
-/* Display all user-defined and automatic macro  */
-/* variables in the SAS log: %put _all_; */
-/* The SYMBOLGEN system option writes macro  */
-/* variable values to the SAS log as they are  */
+/* Displaying macro variables 
+/* Display all user-defined macro variables in  
+/* the SAS log:  %put _user_; 
+/* Display all user-defined and automatic macro 
+/* variables in the SAS log: %put _all_; 
+/* The SYMBOLGEN system option writes macro  
+/* variable values to the SAS log as they are
 /* resolved: options symbolgen; â€“ turn off the  */
-/* option again: options nosymbolgen; */
-/* %SYMDEL macro variables; delete user  */
-/* defined macro variables */
+/* option again: options nosymbolgen; 
+/* %SYMDEL macro variables; delete user
+ defined macro variables */
 
 
 %let month=2;
 %let year=2012;
 options symbolgen;
-data test117;
+data test117; 
    keep day daytype sumLilleBuffet sumStorBuffet;
    set exam.X2012_1_6cleaned10 end=final;
    where year(day)=&year and month(day)=&month;
    if daytype="Normal day" then Number+1;
-   if final then do;
-      if Number=0 then do;
-         call symputx('foot', 'No normal days');
+   if final then do; /* go to last obeservation */
+      if Number=0 then do;  /* and we have no occurances */
+         call symputx('foot', 'No normal days'); /* then no normal days macro variable*/
       end;
       else do;
-         call symputx('foot', 'Some normal days');
+         call symputx('foot', 'Some normal days'); /* if at least one normal day*/
       end;
    end;
 run;
@@ -833,7 +825,7 @@ data test118;
    set exam.X2012_1_6cleaned10 end=final;
    where year(day)=&year and month(day)=&month;
    if daytype="Normal day" then Number+1;
-   if final then call symputx('num', Number);
+   if final = 1 then call symputx('num', Number); /* counting the number of normal days */
 run;
 
 options nocenter ps=20;
@@ -857,12 +849,12 @@ data test119;
    where year(day)=&year and month(day)=&month;
    if daytype="Normal day" then do;
       Number+1;
-      Amount+sumStorBuffet;
-      Date=day;
-      retain date;
+      Amount+sumStorBuffet; 
+      date=day;
+      retain date; /*keep from the last observation*/
       end;
-   if final then do;
-      if number=0 then do;
+   if final then do; /* last observation ?*/
+      if number=0 then do; /* if we dont encountar any normal days */
          call symputx('dat', 'N/A');
          call symputx('avg', 'N/A');
       end;
@@ -887,8 +879,7 @@ footnote;
 
 
 
-Proc sort data=exam.january2013new (keep=initials n) 
-              out=test120 nodupkey;
+Proc sort data=exam.january2013new (keep=initials n) out=test120 nodupkey;
  by initials;
 Run;
 
@@ -899,11 +890,11 @@ run;
 
 %put _user_;
 
-
+/*
+where construct, similar to sql 
+*/
 %let n=2318;
-
-proc print data=exam.january2013new
-;
+proc print data=exam.january2013new;
    where n=&n;
    var totprice;
    title1 "Customer Number: &n";
@@ -911,6 +902,12 @@ proc print data=exam.january2013new
 run;
 
 title;
+
+%let x= y;
+%let y=z;
+%put res8: &&&&&&x;
+%put res9: &&&&&&&x;
+
 
 
 data test121;
