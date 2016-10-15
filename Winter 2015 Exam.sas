@@ -7,7 +7,9 @@ run;
 
 /*
 proc contents data=exam._all_ ;
-run; */
+run;
+*/
+
 /* Winter Exam 2015b */
 Data exam;
 	input epd $3. ag $6. mmd 9.;
@@ -92,15 +94,16 @@ minimum distance between city A1 and all other cities in the table other than ci
 The outer query tests to see whether the distance between cities A1 and B2 is equal to
 the minimum distance that was calculated by the subquery. If they are equal, then a row
 that contains cities A1 and B2 with their coordinates and distance is written
+
+http://support.sas.com/documentation/cdl/en/sqlproc/69049/HTML/default/viewer.htm#p1st65qbmqdks3n1mch4yfcctexi.htm
 */
 Proc sql;* outobs=200;
 	/* limit return to the first 200 rows*/
 	select a.city format=$10., a.state, a.Latitude 'lat', a.Longitude 'long', 
 		b.city format=$10., b.state, b.Latitude 'lat', b.Longitude 'long', 
-		sqrt(((b.Latitude -a.Latitude )**2) + ((b.Longitude -a.Longitude )**2)) as dist format=6.1 from 
-		amum.uscitycoords a, amum.uscitycoords b 
-		where a.city ne b.city 
-		and calculated dist=(
+		sqrt(((b.Latitude -a.Latitude )**2) + ((b.Longitude -a.Longitude )**2)) as dist format=6.1 
+		from amum.uscitycoords a, amum.uscitycoords b 
+		where a.city ne b.city and calculated dist=(
 		select min(sqrt(((d.Latitude -c.Latitude )**2) + ((d.Longitude -c.Longitude )**2))) 
 		from amum.uscitycoords c, amum.uscitycoords d 
 		where c.city=a.city and c.state=a.state and d.city ne c.city) 
@@ -108,20 +111,23 @@ Proc sql;* outobs=200;
 		order by a.city;
 Quit;
 
+
+
+
 /*
 Please make a new similar program without using SQL.
 http://support.sas.com/kb/24/652.html
 */
-Proc sort data=amum.uscitycoords out=sample04 ;
+Proc sort data=amum.uscitycoords out=sample04a ;
 	by city;
 Run;
 
-Proc sort data=amum.uscitycoords out=sample03;
+Proc sort data=amum.uscitycoords out=sample03b;
 	by city;
 Run;
 
-Data sample04;
-	set sample04(rename=(City = a_city
+Data sample04a;
+	set sample04a(rename=(City = a_city
 						 State= a_state
 						 Latitude = a_lat
 						 Longitude = a_long));
@@ -130,36 +136,29 @@ Data sample04;
 Run;
 
 
-data sample03;
-	set sample03(rename=(City = b_city
+data sample03b;
+	set sample03b(rename=(City = b_city
 						 State= b_state
 						 Latitude = b_lat
 						 Longitude = b_long));
 						 n=_n_;
 run;
 
- 
+/* cross join*/
 data every_combination;
-  set sample04;
+  set sample04a;
   do i=1 to k;
-    set sample03 point=i nobs=k;
+    set sample03b point=i nobs=k;
+    	if a_city ne b_city;
+    	distance = sqrt(((b_lat-a_lat)**2) + ((b_long-a_long)**2));
+   		format distance best6.1;
     output;
   end;
 run;
 
-Proc sort data=every_combination(drop=n);
-	by a_city;
+Proc sort data=every_combination;
+	by b_city;
 Run;
-
-data t1; *(firstobs=1 obs=200);
-set every_combination;
-   distance = sqrt(((b_lat-a_lat)**2) + ((b_long-a_long)**2));
-   format distance best6.1;
-   if a_city ne b_city;
-run;
-
-
-
 
 
 
@@ -167,16 +166,16 @@ run;
 
 
  
-Proc sort data=amum.uscitycoords out=sample05 ;
+Proc sort data=amum.uscitycoords out=sample05c ;
 	by city;
 Run;
 
-Proc sort data=amum.uscitycoords out=sample06;
+Proc sort data=amum.uscitycoords out=sample06d;
 	by city;
 Run;
 
-Data sample05;
-	set sample05(rename=(City = c_city
+Data sample05c;
+	set sample05c(rename=(City = c_city
 						 State= c_state
 						 Latitude = c_lat
 						 Longitude = c_long));
@@ -184,39 +183,61 @@ Data sample05;
 
 Run;
 
-data sample06;
-	set sample06(rename=(City = d_city
+data sample06d;
+	set sample06d(rename=(City = d_city
 						 State= d_state
 						 Latitude = d_lat
 						 Longitude = d_long));
 						 n=_n_;
 run;
 
-data every_combination_2;
-  set sample05;
-  do i=1 to q;
-    set sample06 point=i nobs=q;
+/* cross join*/
+data every_combination_2;* (keep=distance_min);
+  set sample05c;
+  do i=1 to k;
+    set sample06d point=i nobs=k;
+    	if d_city ne c_city;
+    	distance_min = min(sqrt(((d_lat-c_lat)**2) + ((d_long-c_long)**2)));
+   		format distance_min best6.1;
     output;
   end;
 run;
 
 Proc sort data=every_combination_2(drop=n);
-	by c_city;
+	by d_city;
 Run;
 
 
-data t2; *(firstobs=1 obs=200);
-set every_combination_2;
-   distance_min = min(sqrt(((d_lat-c_lat)**2) + ((d_long-c_long)**2)));
-   format distance_min best6.1;
-   if d_city ne c_city;
+data eion2;
+  set sample04a;
+  do i=1 to k;
+    set sample03b point=i nobs=k;
+     
+      distance = sqrt(((b_lat-a_lat)**2) + ((b_long-a_long)**2));
+      format distance best6.1;
+     	 *do p=1 to u;
+    		set sample05c;* point=p nobs=u;
+				do m=1 to w;
+				   set sample06d point=m nobs=w;
+	     			 if d_city ^= c_city AND c_city = a_city and c_state = a_state;
+			    	 distance_min = min(sqrt(((d_lat-c_lat)**2) + ((d_long-c_long)**2)));
+			   		 format distance_min best6.1;
+						*if distance eq distance_min;
+
+				   		output;
+				*end;
+end;
+  end;
 run;
 
-
-data m1;
-	merge sample03(in=e) sample04(in=p) sample05 sample06;
-	by city ;
-	
+data t3;
+set every_combination;
+  do i=1 to k;
+    set every_combination_2 point=i nobs=k;
+    	if b_city = c_city and b_state = c_state and distance = distance_min;
+    	
+    output;
+  end;
 run;
 
 /*
@@ -229,8 +250,8 @@ c_city = a_city and c_state=a_state and distance = distance_min
 */
 
 
-/* missing b column*/
 
+ 
 Data one;
 input a $ b;
 datalines;
@@ -252,35 +273,41 @@ e .
 ;
 Run;
 
-proc sort data=one;
-by b a;
-run;
-
-
-proc sort data=two;
-by b a;
-run;
-
-
-data work.onTw;
-merge one(in =l rename = (a=One)) two(in = p rename = (a=Two));
-by b;
-label a = "One" b= "Two";
-if b ne .;
-
-run;
-
-proc sort data=work.onTw nodupkey;
-by a b;
-run;
-proc print data=work.ontw noobs;
-run;
-
 Proc sql; 
 select one.a 'One', one.b, two.a 'Two', two.b 
 from one, two 
 where one.b=two.b and one.b is not missing; 
 Quit;
+
+proc sort data=one;
+by b a;
+run;
+
+proc sort data=two;
+by b a;
+run; 
+
+/*
+http://www.sascommunity.org/wiki/SQL_Allows_Multiple_Columns_with_Same_Name
+In a DATA step, the program data vector does not allow two variables to have the same name. SQL is different. 
+The namespace for a query can have multiple instances of the same column name. 
+*/
+
+data work.onTw;
+merge one(in = l rename = (a=One)) two(in = p rename = (a=Two));
+by b;
+label a = "One" b= "Two";
+sameB = b;
+if b ne .;
+keep One b Two sameB;
+run;
+/*
+proc sort data=work.onTw nodupkey;
+by a b;
+run;
+proc print data=work.ontw noobs;
+run;
+*/
 
 
 /*
