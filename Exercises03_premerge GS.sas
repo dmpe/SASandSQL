@@ -1,25 +1,25 @@
 libname exam '/folders/myshortcuts/SASUniversityEdition/EXAM/';
 
-/*  inencoding=asciiany; */
+/*  inencoding=asciiany;
+OK :) */
 proc sql ;
 	create table te as select initials, time, weekday, date, salesunit, prodcat, 
 		subsidy, price, pricenew, totprice, department from exam.january2013new;
 quit;
 
 Proc sql ;
-	create table X2012_1_6cleaned09 as select a.*, b.* from X2012_1_6cleaned08 as 
-		a left join X2012_1_6cleaned_summary_a as b on a.day=b.day;
+	create table X2012_1_6cleaned09 as select a.*, b.* 
+	from X2012_1_6cleaned08 as a left join 
+	X2012_1_6cleaned_summary_a as b on a.day=b.day;
 Quit;
 
 Data bbb.X2012_1_6cleaned10(drop=i);
 	set X2012_1_6cleaned09;
-	array x(*) _numeric_;
+	array x(*) _numeric_; /* dont explain array, star = variable lenght, counting number of numeric vars */
 
 	do i=1 to dim(x);
-
 		/* changes all missing variables (cells) to 0 */
-		if x(i)=. then
-			x(i)=0;
+		if x(i)=. then x(i)=0;
 	end;
 Run;
 
@@ -46,7 +46,9 @@ Run;
 /*
 Merge (not sql) the test2 data set by initials with the four data sets, exam.sample1-4.
 I only want output if at least two of the five data sets have contributed to the construction
-of this new data set. Make contingency tables of the four sample data sets.
+of this new data set. 
+
+Make contingency tables of the four sample data sets.
 Use proc freq statements
 */
 proc sort data=exam.sample1 out=exam.sample1;
@@ -61,7 +63,7 @@ proc sort data=exam.sample3 out=exam.sample3;
 	by initials;
 Run;
 
-proc sort data=exam.sample4 out=exam.sample4;
+proc sort data=exam.sample4 out=exam.sample4 nodupkey;
 	by initials;
 Run;
 
@@ -69,21 +71,34 @@ data testme;
 	merge test2(in=a) exam.sample1(in=b) exam.sample2(in=c) exam.sample3(in=d) 
 		exam.sample4(in=e);
 	by initials;
+	test2 = 0;
+	sample1 = 0; sample2=0; sample3=3;
+	sample4 = 0; match = 0;
+	if a then test = 1;
+	if b then sample1 = 1;
+	if c then sample2 = 1;
+	if d then sample3 = 1;
+	if e then sample4 = 1;
+	match = sum(test2, sample1, sample2, sample3, sample4, sample5);
+	if match gt 2 then output;
 run;
 
 proc freq data=testme;
-	*tables testme;
-	* exam.sample3 exam.sample4;
+	tables exam.sample3 exam.sample4 /nocum;
+	tables exam.sample1 * exam.sample3 /nocum;
 run;
 
 proc freq data=exam.sample3;
 run;
 
-/* not in sql */
+
+
+/* NOT in sql */
 Proc sql ;
 	create table ax.t as select kkk.custno, kkk.deal, qq.step 
 	from (select kk.*, q.id from	
-		(select k.k_no, k.custno, b.mother_k, b.deal from ax.kiskunde k, ax.bonuskis b where k.k_no=b.k_no) kk, ax.comp q where kk.mother_k=q.k_no) kkk ,
+		(select k.k_no, k.custno, b.mother_k, b.deal 
+		from ax.kiskunde k, ax.bonuskis b where k.k_no=b.k_no) kk, ax.comp q where kk.mother_k=q.k_no) kkk ,
 		 ax.bdeal qq where kkk.id=qq.primcomp and 
 		kkk.deal=qq.deal and kkk.deal in ('ERBO', 'ERB2', 'SKFR', 'SKBO');
 	;
@@ -92,37 +107,62 @@ Quit;
 /*select k.k_no, k.custno, b.mother_k, b.deal from ax.kiskunde k, ax.bonuskis b where k.k_no=b.k_no*/
 /* select kk.*, q.id from inner_most kk, ax.comp q where kk.mother_k=q.k_no*/
 
+/* Must be sorted */
+proc sort data=ax.kiskunde(keep=k_no custno) out=ax.kiskunde;
+by k_no;
+run;
+
+proc sort data=ax.bonuskis(keep=k_no mother deal) out=ax.bonuskis;
+by k_no;
+run;
+
 data inner_most;
 merge ax.kiskunde(in=a) ax.bonuskis(in=b);
 by k_no;
-if a and b;
-keep k_no custno mother_k deal
+if a and b then output;
+run;
+
+/* must be sorted again, cannot be assumed */
+
+proc sort data=xxx out=xxx;
+by k_no;
+run;
+
+proc sort data=xxx out=xx;
+by k_no;
 run;
 
 data second_innerMost;
 	merge innermost(in=w rename=(mother_k=k_no) ax.comp(in=q keep = id);
 by k_no;
-if w and q;
+if w and q then output;
 run;
 
+/* sort again */
+
 data ax.t;
-merge second_innerMost(in=m keep=custno deal) ax.bdeal(id=i keep=step rename=(primcomp =id));
+merge second_innerMost(in=m keep=custno deal) 
+	  ax.bdeal(id=i keep=step rename=(primcomp =id));
 by id deal;
-if i and m;
-if deal in ('ERBO', 'ERB2', 'SKFR', 'SKBO');
+if i and m and deal in ('ERBO', 'ERB2', 'SKFR', 'SKBO') then output;
 
-
+ 
+ /*
+ Explain
+ */
+ 
+ 
 Data until;
 rate=0.0357;
-total=100;
+total=100; /* loop 100 */
 do year=1 to 100 until (total gt 200);
-total=total+rate*total;
-output;
+total=total+rate*total; /* start at 100 and add 3.7% and cont. unless stop when reached 200 */
+output; 
 end;
 format total dollar10.2;
 Run;
 
-
+ /* make in sql */
 Data HI FO telecom;
 set kdemo(keep=k_no kisname hmob segm: mailstop employee);
 if upcase(segment1)='TELECOM' and employee lt 100
@@ -161,13 +201,13 @@ output out=stats p=predict r=resid;
 Run;
 
 %mend regression;
-%regression(xvar=sumCacaomaelk sumCecil sumbolle)
+%regression(xvar=sumCacaomaelk sumbolle)
 title
 
 
-/* comments*/
+/* comments, everything goes into log */
 options mcompilenote=all;
-%macro time;
+%macro time; /* resolves time function to x plus adds format */
 %put The current time is %sysfunc(time(),timeAMPM.).;
 %mend time;
 %time
@@ -184,13 +224,13 @@ output out=summary sum=totprice;
 var price; 
 Run;
 
-
 data _null_;
-set summary ;
-call symput('sumtotalvar', totprice);
+set summary end=final; /* final to 1 when add the bottom of file */
+totp+totprice;
+if final then call symput('sumtotalvar', totp);
 run; 
 
-Data newtest19_notsql(keep=initials department price pricepct totprice total); 
+Data newtest19_notsql(keep=initials department pricepct); 
 merge exam.january2013new summary(keep=totprice);
 retain total;
 if _n_ = 1 then total=totprice;
@@ -242,12 +282,18 @@ Run;
 
 &stufflist;
 
+%macro asd;
+%do i = 1 %to 200;
+proc means data= data&i;
+run;
+%mend;
 
 
 
 
+/*
 
-
+*/
 
 Proc format;
 value rfmt 1000-2000 = “NXE”
@@ -257,54 +303,64 @@ value rfmt 1000-2000 = “NXE”
 Run;
 Data nw;
 set indata;
-region = put(cty, rfmt.);
+region = put(cty, rfmt.); /* put in regions cty formated as rfmt */
 Run;
 Data sw;
 set indata;
-if put(cty, rfmt.) = “SXW”;
+if put(cty, rfmt.) = “SXW”; /* create a new var based on of cty;
+prints only those which are SXW*/
 Run;
 
 
 /*
-
+48 rows, fill data from 13 to 2 in column c_tot
 */
-
+ 
 Data test;
-do centr = 1 to 8;
-do treat = 1 to 0 by -1;
-do respn = 3 to 1 by -1;
-input c_tot @@;
-output;
+do centr = 1 to 8; /*-> 8*/
+	do treat = 1 to 0 by -1; /* 2*/
+		do respn = 3 to 1 by -1; /*3*/
+			input c_tot @@;
+			output;
+		end;
+	end;
 end;
-end;
-end;
+
 datalines;
 13 7 6 1 1 10 2 5 10 2 2 1
 11 23 7 2 8 2 7 11 8 0 3 2
 15 3 5 1 1 5 13 5 5 4 0 1
 7 4 13 1 1 11 15 9 2 3 2 2
 Run;
- 
 /*
+http://www2.sas.com/proceedings/sugi28/066-28.pdf
+The  following  DATA  step  converts  numeric
+values with a yymmdd format to SAS date values. 
 
+The YYMMDD6. informat cannot accept values with fewer
+than 5 characters, so for values of date1 in the year 2000,
+such as the following, sasdate1 is a missing value
+
+To  fix  the  problem,  use  the  Z6.  format  instead  of  the  6.
+format,  because Z6. generates leading zeros.  For example,
+for 101 (January 1, 2000), 
 */
+
+
 Data _null_;
 x=120231 ;
-xch = put(x,z6.) ;
-xd = input (xch, mmddyy6.) ;
-format xd date7. ;
+xch = put(x,z6.) ; /* convert numeric date to chars date -6z is unnecessary here*/
+xd = input (xch, mmddyy6.) ; /* take char and convert to data format*/
+format xd date7. ; /* otherwise to numberic of -10257 */
 put _all_ ;
-Run;
-
+Run; 
 
 
 /*Explain what happens here. Make comments. Make a non-sql version of this code.*/
-
+ 
 Proc sql noprint;
-insert into vit
-values(11 '21SEP2011'd 22 2 1);
-insert into vit
-set pt=11, date='21SEP2011'd, pls=21, pl=2, p=1;
+insert into vit values(11 '21SEP2011'd 22 2 1);
+insert into vit set pt=11, date='21SEP2011'd, pls=21, pl=2, p=1;
 Quit;
 
 
@@ -315,7 +371,6 @@ datalines;
 11 21SEP2011 22 2 1
 11 21SEP2011 22 2 1
 ;
-
 run;
 
 
