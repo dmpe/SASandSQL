@@ -1,0 +1,203 @@
+libname exam '/folders/myshortcuts/SASUniversityEdition/EXAM/';
+libname amum '/folders/myshortcuts/SASUniversityEdition/SAS_SQL_Procedure/';
+
+
+/*
+DATA step provides the name of the SAS data set being created. 
+Here it is being stored in the work (non-permanent) library.*/
+data mtchd;
+/*
+Here inline data have multiple observations per line of raw data. 
+
+So after 3 vars, we tell SAS, by using double trailing at signs
+(@@), "to hold that line of raw data.” Little Book p.69
+"This means that SAS came to the end of a line in the
+middle of an observation and continued reading with the next line of raw data."
+
+SAS reads first 3 numbers (654 464 86465), stores them into 3 variables 
+and does it again with (6654 654 64) which is stored under the same variables
+on the next line in data set.
+*/
+input first second count @@;
+/*
+INPUT statement describes the arrangement of values 
+in the raw data file and assigns input values to the 
+corresponding SAS variables, here all are numeric
+*/
+datalines; /* raw data lines follow*/
+654 464 86465 6654 654 64 684 964 65435 115 3
+; /* raw data ends here */
+run;
+
+proc freq; /* creates frequency statistics (frequency and contingency) tables */
+weight count; /*WEIGHT statement names a "count" variable that provides a weight for each observation in the input data set https://support.sas.com/documentation/cdl/en/procstat/63104/HTML/default/viewer.htm#procstat_freq_sect012.htm*/
+tables first*second / agree;
+/*
+TABLES statement requests 2-way frequency and crosstabulation tables and statistics for "first" and "second" tables (i.e. variables). 
+https://support.sas.com/documentation/cdl/en/procstat/63104/HTML/default/viewer.htm#procstat_freq_sect010.htm
+
+Agree additionally "requests tests and measures of classification agreement for square tables. 
+The AGREE option provides McNemar’s test for tables and Bowker’s test of symmetry for square tables with more than two response categories. The AGREE option also produces the simple kappa coefficient, the weighted kappa coefficient, their asymptotic standard errors, and their confidence limits.
+
+The EXACT statement requests exact tests or confidence limits for the specified statistics, here McNemar’s test.
+https://support.sas.com/documentation/cdl/en/procstat/63104/HTML/default/viewer.htm#procstat_freq_sect008.htm
+*/
+exact mcnem;
+run;
+
+
+/*
+The _NULL_ DATA step is a specialized case of the DATA step.  
+When  you  use  the  _NULL_  key  word,  the  DATA  statement  
+processes  all  statements  within  the  DATA  step  without  
+data  set  creation
+
+http://www2.sas.com/proceedings/sugi27/p061-27.pdf
+
+*/
+
+data _null_;
+/*
+The SET statement reads all "rows and columns" from SAS data
+set in order to further process them in a DATA step. 
+
+END options assigns "lastobs" to the last row in dataset.
+*/
+set thrtns end= lastobs; 
+/*
+store result of a+b in a variable a
+*/
+a+b;
+/* if we have reached last row in dataset marked as lastobs, then...*/
+if(lastobs) then
+/*
+https://v8doc.sas.com/sashtml/macro/z0210266.htm
+http://www2.sas.com/proceedings/sugi27/p061-27.pdf
+http://www2.sas.com/proceedings/sugi28/066-28.pdf
+
+assign a value produced in "put(a/_n_,4.1)" to a macro variable "avg".
+ 
+"put(a/_n_,4.1)" - take variable a that we have calcualted above and devide it
+by an  automatic  counter  variable created in dataset 
+(aka all rows that thrtns has had). Then by using put function, 
+reformat return a result of such calculation in a specified format,
+here "4.1" which will be reformatted into numeric of lenght 4 and 1 decimal.
+*/
+call symput("avg", put(a/_n_,4.1));
+run;
+/*
+to display a value of avg along 
+with descriptive text in the SAS log. 
+*/
+
+%put macro variable avg: [&avg];
+/*
+http://www2.sas.com/proceedings/sugi30/070-30.pdf
+Obtains a list 
+*/
+
+proc sql; /*procedure SQL allows to use SQL syntax; marks where sql starts and needs to 
+beexuted by sql engine. Here it will return data straight.
+
+Create a one row list of somehting like "sm(XXX) as Sm_XXX" that 
+is separated with comma. */
+select 'sm(' || trim(nm) || ') as Sm_' || nm 
+/*
+leading and trailing blanks are deleted 
+'sm(' || - "sm(" will be concatenated with trimmed value of spaces of variable nm
+this will be again concatenated with ") as Sm_" and finally with non trimmed value of nm
+will resolve to something like sm(XXX) as Sm_XXX
+
+*/
+into : va separated by ', '
+/*
+http://www2.sas.com/proceedings/sugi27/p071-27.pdf
+
+Syntax extracts values from all rows of the query result
+and puts them into a (single) macro variable, separated by
+the specified delimiter
+
+selects variables from dictionary.columns to display 
+Retrieving information about columns in SAS session-stored data sets.
+*/
+
+from dictionary.columns /* this table provides information/metadata about columns 
+of "tables" that are stored in sas session. At run time SAS generates data about 
+SAS libraries, data sets, catalogs, indexes, macros,
+system options, titles, and views in a collection of read-only tables 
+called dictionary tables*/
+
+where libname = 'work' and memnme= 'wide' and type= 'num';
+/*
+search all temporary tables with libname work, 
+where type of variable is numeric and where member name is "wide"
+*/
+quit;
+
+
+data one;
+/*
+create temporary data set one with data from test
+It uses INFILE statement to tell SAS the filename and path of
+the external file containing the data. The INFILE statement follows the DATA
+statement and must precede the INPUT statement - Littel Book 53 */
+infile test;
+input id 1-2 t 3 score 4-6 covar 7-9;
+/* first variable is numeric runs from place 1 to 2, then numeric var t is 
+at place 3 then numeric score runs from 4-6th place in the test data file 
+and covar runs from 7-9th place
+*/
+run;
+/*
+http://support.sas.com/documentation/cdl/en/lestmtsref/63323/HTML/default/viewer.htm#p0yeyftk8ftuckn1o5qzy53284gz.htm*/
+
+data tree; /* new data temp. tree*/
+array tvar[4] t1-t4; /* create array of lengh 4, named tvar, with elements t1, t2, t3 t4*/
+array scorevar[4] score1-score4; /* same here*/
+do i = 1 to 4 until (last.id); /* loop from 1 to 4 until we reached last element of id group*/
+set one; /* read observations from a SAS data set  one for further processing*/ 
+by id; /*set a grouping variable*/
+tvar[i]=t; /* at i = 1, tvar1 will get a value of t variable. tvar2 will get t*/
+scorevar[i]=score;/* same here*/ 
+end; /*end loop*/
+drop i t score;
+run;
+
+%macro renme2(x,y); /* create macro renme2 that accepts 2 arguments*/
+%let k=1; /* define variable k that has value of 1 */
+%let ld = %scan(&x, &k); /* resolve result of SCAN function to ld. 
+Scan will return 1st word from x */
+%do %while("&ld" ne ""); /* loop while ld varaible above is not empty ""*/
+ rename &old = &ld.&y; /* rename old value with new one by taking 1st word
+ and appending it to value of y */
+ %let k = %eval(&k +1); /* overwrite and increment previous k value by 1 */
+ %let old = %scan(&x, &k); /* set old variable with Kth word of x */
+%end;
+%mend;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
