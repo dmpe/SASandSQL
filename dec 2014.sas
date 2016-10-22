@@ -1,3 +1,5 @@
+libname exam '/folders/myshortcuts/SASUniversityEdition/EXAM/';
+
 /*
 comments*/
 Proc sql; create table pa12 as 
@@ -212,14 +214,119 @@ run;
 /*
 The data set Exam needs some cleaning up. 
 First, remove observations if idnumber02 is 
-missing unless the employee is a woman, i.e.
- Male=2. Next, remove an observation if the 
- employee is older than 68 (Age), or the initials 
- contain a number. Call this new data set for EXAM_a*/
+missing unless the employee is a woman, i.e. Male=2. 
+
+Next, remove an observation if the 
+employee is older than 68 (Age), or the initials 
+contain a number. Call this new data set for EXAM_a
+http://blog.sasanalysis.com/2012/10/sas-and-vba-6-delete-empty-rows.html
+*/
+OPTIONS MISSING=' ';
+data s1;
+set exam.exam end= te;
+if missing(cats(of _all_)) then delete;
+if idnumber02 = . and male = 1 then delete;
+if (te) then delete; 
+run;
 
 
+/* http://snipplr.com/view/11572/*/
+data EXAM_a;
+set s1;
+if age gt 68 or anydigit(initials)>0 then delete;
+run;
+
+/*
+Remove observations in EXAM_a if an “Initial” (Initials) 
+is also in Sample1, Sample2, and Sample3. 
+
+Indicate with new variables if an “Initial” of EXAM_a can also be found in 
+Sample4 and Sample5. Call this new data set EXAM_b.
+*/
+
+Proc sql;
+create table qwe as
+select c.*
+from EXAM_a c 
+where initials not in (select initials from exam.sample1)
+and initials not in (select initials from exam.sample2) and 
+initials not in (select initials from exam.sample3)
+order by initials; 
+Quit;
+
+proc sort data=exam.sample4 out=exam.sample4 nodupkey;
+	by initials;
+Run;
+
+proc sort data=exam.sample5 out=exam.sample5 nodupkey;
+	by initials;
+Run;
+
+data EXAM_b;
+	merge qwe(in=a) exam.sample4(in=e) exam.sample5(in=f);
+	by initials;
+	test2 = 0; CanBeFoundInSample4= 0; CanBeFoundInSample5= 0;
+	if a then test2 = 1;
+	if e then CanBeFoundInSample4= 1;
+	if f then CanBeFoundInSample5= 1;
+run;
+
+/*
+Merge “X201201” and “Key03”. Remove identical observations. Call this new data set EXAM_c.*/
+proc sort data=exam.X201201 out=exam.X201201 ;
+	by initialer;
+Run;
+proc sort data=exam.key03 out=exam.key03;
+	by initials;
+Run;
 
 
+data exam_c;
+merge exam.X201201(in=i) exam.key03(in=o rename=(initials=initialer));
+by initialer;
+if i and o then delete;
+run;
+
+proc sort data=exam_c out=exam_c nodupkey;
+	by initialer;
+Run;
+
+/*
+Use the data set X2012_1_6cleaned10 to calculate the total sales in terms “sumSodavand” 
+and “sumBolle” for each “Weekday”. We only need output if these totals are greater than 
+the average sales of “sumSodavand” for a given weekday. Sort by weekday so Monday 
+is the first and Sunday is the last weekday.
+*/
+
+proc sql;
+create table exam4 as
+select weekday, sum(sumSodavand) as sumSodavand , sum(sumBolle) as sumBolle, avg(sumSodavand) as avg_sumSodavand
+from exam.X2012_1_6cleaned10
+group by Weekday
+order by weekday;
+quit;
+
+proc sql;
+create table exam4_1 as
+select *
+from exam4
+where sumSodavand gt avg_sumSodavand or sumBolle gt avg_sumSodavand;
+quit;
+
+proc sql;
+create table exam4_2 as
+select *, case weekday
+             when lower('MANDAG') then 1
+             when lower('TIRSDAG') then 2
+			 when lower('ONSDAG') then 3
+			 when lower('TORSDAG') then 4
+			 when lower('FREDAG') then 5
+			 when lower('LØRDAG') then 6
+			 when 'søndag' then 7
+end as day
+from exam4_1
+order by day;
+quit;
 
 
 
