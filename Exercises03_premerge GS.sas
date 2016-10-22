@@ -1,5 +1,8 @@
 libname exam '/folders/myshortcuts/SASUniversityEdition/EXAM/';
 
+
+
+
 /*  inencoding=asciiany;
 OK :) */
 proc sql ;
@@ -72,7 +75,7 @@ data testme;
 		exam.sample4(in=e);
 	by initials;
 	test2 = 0;
-	sample1 = 0; sample2=0; sample3=3;
+	sample1 = 0; sample2=0; sample3=0;
 	sample4 = 0; match = 0;
 	if a then test = 1;
 	if b then sample1 = 1;
