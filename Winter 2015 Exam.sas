@@ -79,7 +79,7 @@ proc sql ;
 		orion.Employee_Donations where calculated Total > 90;
 quit;
 
-/*
+/* NOT DONE
 Suppose that you want to find
 the city nearest to each city in the amum.coords table. The query must first select a
 city A, compute the distance from a city A to every other city, and finally select the city
@@ -131,7 +131,7 @@ Data sample04a;
 						 State= a_state
 						 Latitude = a_lat
 						 Longitude = a_long));
-						 n=_n_;
+				
 
 Run;
 
@@ -141,7 +141,7 @@ data sample03b;
 						 State= b_state
 						 Latitude = b_lat
 						 Longitude = b_long));
-						 n=_n_;
+
 run;
 
 /* cross join*/
@@ -157,7 +157,7 @@ data every_combination;
 run;
 
 Proc sort data=every_combination;
-	by b_city;
+	by a_city a_state;
 Run;
 
 
@@ -179,7 +179,7 @@ Data sample05c;
 						 State= c_state
 						 Latitude = c_lat
 						 Longitude = c_long));
-						 n=_n_;
+
 
 Run;
 
@@ -188,7 +188,7 @@ data sample06d;
 						 State= d_state
 						 Latitude = d_lat
 						 Longitude = d_long));
-						 n=_n_;
+
 run;
 
 /* cross join*/
@@ -197,14 +197,15 @@ data every_combination_2;* (keep=distance_min);
   do i=1 to k;
     set sample06d point=i nobs=k;
     	if d_city ne c_city;
-    	distance_min = min(sqrt(((d_lat-c_lat)**2) + ((d_long-c_long)**2)));
+    	
    		format distance_min best6.1;
     output;
   end;
+  distance_min = min(sqrt(((d_lat-c_lat)**2) + ((d_long-c_long)**2))); 
 run;
 
-Proc sort data=every_combination_2(drop=n);
-	by d_city;
+Proc sort data=every_combination_2;
+	by c_city c_state;
 Run;
 
 
@@ -231,13 +232,10 @@ end;
 run;
 
 data t3;
-set every_combination;
-  do i=1 to k;
-    set every_combination_2 point=i nobs=k;
-    	if b_city = c_city and b_state = c_state and distance = distance_min;
-    	
-    output;
-  end;
+merge every_combination(in = r rename = (a_city=city a_state = state))
+  every_combination_2(in = d rename = (c_city = city c_state = state));
+by city state;
+if r and d  ;
 run;
 
 /*
@@ -250,8 +248,11 @@ c_city = a_city and c_state=a_state and distance = distance_min
 */
 
 
-
- 
+/*
+http://www.sascommunity.org/wiki/SQL_Allows_Multiple_Columns_with_Same_Name
+In a DATA step, the program data vector does not allow two variables to have the same name. SQL is different. 
+The namespace for a query can have multiple instances of the same column name. 
+*/
 Data one;
 input a $ b;
 datalines;
@@ -286,12 +287,6 @@ run;
 proc sort data=two;
 by b a;
 run; 
-
-/*
-http://www.sascommunity.org/wiki/SQL_Allows_Multiple_Columns_with_Same_Name
-In a DATA step, the program data vector does not allow two variables to have the same name. SQL is different. 
-The namespace for a query can have multiple instances of the same column name. 
-*/
 
 data work.onTw;
 merge one(in = l rename = (a=One)) two(in = p rename = (a=Two));
@@ -370,9 +365,29 @@ The data sets New01 and New02 need some cleaning up. First, remove all duplicate
 (if any), and sort the data by Idnumber01. Next remove an observation if one or more of the 
 variables have a missing value. Merge the two data sets (without SQL) by Idnumber01. Finally, 
 remove the variable Keytype. Call the new data set Exam1.
-
+https://communities.sas.com/t5/SAS-Procedures/How-to-delete-rows-with-missing-numbers/td-p/28064
 */
 
+proc sql;
+create table at as 
+select distinct Keytype, input(idnumber01, 10.) as idnumber01, Idnumber02 
+from exam.new01 
+where Keytype is not missing and idnumber01 is not missing and Idnumber02 is not missing
+order by idnumber01;
+quit;
+
+proc sql;
+create table at2 as 
+select distinct *
+from exam.new02
+where initials is not missing and idnumber01 is not missing 
+order by Idnumber01;
+quit;
+
+data Exam1(drop=Keytype);
+merge at(in= y) at2(in =r);
+by idnumber01;
+run;
 
 /*
 Merge Key02 with Key03 by Idnumber01. Make sure that the data sets do not contain duplicate 
@@ -385,10 +400,10 @@ https://communities.sas.com/t5/General-SAS-Programming/6-ways-of-removing-duplic
 
 proc sort data=exam.key02 NODUPLICATES;
 by Idnumber01;
-run;
+run; 
 proc sort data=exam.key03 NODUPLICATES;
 by Idnumber01;
-run;
+run; 
 
 proc sql;
 create table Exam2 as
@@ -402,10 +417,15 @@ create table Exam2_1 as
 select distinct *
 from Exam2 as d, exam.employee as t, exam.expenditures as k
 where d.Idnumber01 = t.Idnumber01 and d.Idnumber01 = k.Idnumber01;
-quit;
-
+quit;  
+/*
+data exam2_1;
+set exam2_1;
+ if cmiss(of _all_) then delete;
+run;*/
 proc sort data=exam2_1 noduprecs;
-      by _all_ ; Run;
+      by _all_ ; 
+      Run;
 
 
 /* 
@@ -437,7 +457,8 @@ Proc sort data=newsales; by id;
 Run;
 
 Data three;
-merge empl(drop=dob) nxsales(in=new); by id;
+merge empl(drop=dob) nxsales(in=new); 
+by id;
 if new;
 Run;
 
@@ -491,14 +512,14 @@ set exam3;
  if Keytype le 3 and Keytype not = . then output Exam3_small;
  else if Keytype gt 3 then output Exam3_big;
  else output Exam3_missing;
-run;
+run; 
 
 /*
 Use the data set X2012_1_6cleaned10 to calculate the total sales in terms of sumLillebuffet for each weekday. 
 Consider only days where total sales of sumLillebuffet is greater than the sales of 1.9*sumStorBuffet.
  Call the new data set: exam4.
 Again, remember to make comments at each step (i.e. at each program line).
-*/
+*/ 
 proc sql;
 create table exam4_1 as
 select *
@@ -514,19 +535,19 @@ group by Weekday;
 quit;
 
 
-/*
+/* NOT DONE
 Make a random sample from X201204 of 500 distinct employees. 
 Make sure that these are not from Afdeling=”AgroTech A/S” and not part of the data set Sample1, Sample2, Sample3. 
 Moreover, keep all observations from X201204 for these 500 distinct employees. 
 Furthermore, exemplify the use of a macro variable in a “Where” statement. 
 During execution this macro is supposed to generate a subset of the data set. 
-Call the new data set Exam5.
+Call the new data set Exam5. 
 Again, remember to make comments at each step (i.e. at each program line).
 */
 
-data t9;
+data t9; 
 set exam.sample3 exam.sample2 exam.sample1;
-run;
+run;  
 
 /*
 data _null_;
@@ -543,8 +564,7 @@ where t9.initials is null and dato is not missing and Afdeling ne "AgroTech A/S"
 quit;
  
 
-proc surveyselect data=r1
-   method=srs n=500 out=SampleSRS;
+proc surveyselect data=r1 method=srs n=500 out=SampleSRS;
 run;
 
 /*
@@ -554,7 +574,7 @@ http://www.sas.com/offices/europe/uk/support/sas-hints-tips/ht1_mar04.html
 XCMD will never work https://marc.info/?l=sas-l&m=129106829117885
 https://communities.sas.com/t5/SAS-Procedures/How-to-enable-XCMD-in-SAS-University-Edition/td-p/265868
 http://support.sas.com/software/products/university-edition/faq/limitations.htm
-*/
+*/ 
 proc options option=xcmd; run;
 proc options option=xwait; run;
 
